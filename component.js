@@ -2,8 +2,24 @@ import { apiInitializer } from "discourse/lib/api";
 import I18n from "I18n";
 import discourseComputed from "discourse-common/utils/decorators";
 
-export default apiInitializer("1.8.0", (api) => {
-  console.log("[WB Composer Placeholders] Component initializing...");
+// This will execute as soon as the module loads - if you see this, the file is being loaded
+console.log("[WB Composer Placeholders] ===== MODULE LOADED ===== File is being executed");
+console.log("[WB Composer Placeholders] Checking imports:", {
+  apiInitializer: typeof apiInitializer,
+  I18n: typeof I18n,
+  discourseComputed: typeof discourseComputed,
+  apiInitializerIsFunction: typeof apiInitializer === "function"
+});
+
+let componentInitializer;
+try {
+  componentInitializer = apiInitializer("1.8.0", (api) => {
+    console.log("[WB Composer Placeholders] ===== Component initializing ===== API callback called");
+    console.log("[WB Composer Placeholders] API received:", {
+      hasApi: !!api,
+      hasModifyClass: typeof api?.modifyClass,
+      apiKeys: api ? Object.keys(api) : []
+    });
   
   // Defensive check for I18n availability
   if (!I18n || !I18n.translations) {
@@ -192,5 +208,23 @@ export default apiInitializer("1.8.0", (api) => {
   }
   
   console.log("[WB Composer Placeholders] Component initialization complete");
+  });
+} catch (error) {
+  console.error("[WB Composer Placeholders] ===== FATAL ERROR ===== Failed to create apiInitializer:", error);
+  console.error("[WB Composer Placeholders] Error details:", {
+    message: error.message,
+    stack: error.stack,
+    name: error.name,
+    toString: error.toString()
+  });
+  // Re-throw to prevent silent failure
+  throw error;
+}
+
+console.log("[WB Composer Placeholders] Module setup complete, exporting:", {
+  hasComponentInitializer: !!componentInitializer,
+  type: typeof componentInitializer
 });
+
+export default componentInitializer;
 
