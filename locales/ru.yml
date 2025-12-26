@@ -1,0 +1,7 @@
+ru:
+  js:
+    composer:
+      wb_reply_placeholder: "Напишите ответ…"
+      wb_topic_placeholder: "Создайте новую тему…"
+      wb_pm_placeholder: "Напишите личное сообщение…"
+
