@@ -104,25 +104,15 @@ try {
       note: "Checking multiple access methods to find overrides"
     });
     
-    // Set defaults only if they don't exist (using ||= which only sets if falsy/undefined)
-    // This means overrides from /admin/customize/text will be preserved
-    if (lang === "en") {
-      I18n.translations[locale].js.composer.wb_reply_placeholder ||= "Write your reply…";
-      I18n.translations[locale].js.composer.wb_topic_placeholder ||= "Start a new topic…";
-      I18n.translations[locale].js.composer.wb_pm_placeholder ||= "Write a private message…";
-    }
-    
-    if (lang === "ru") {
-      I18n.translations[locale].js.composer.wb_reply_placeholder ||= "Напишите ответ…";
-      I18n.translations[locale].js.composer.wb_topic_placeholder ||= "Создайте новую тему…";
-      I18n.translations[locale].js.composer.wb_pm_placeholder ||= "Напишите личное сообщение…";
-    }
-    
-    console.log("[WB Composer Placeholders] Final translations (after setting defaults):", {
+    // DON'T set defaults at initialization - let locale files and overrides handle it
+    // We'll set defaults at runtime only if I18n.t() can't find the translation
+    // This ensures overrides from /admin/customize/text work correctly
+    console.log("[WB Composer Placeholders] Skipping default setting at initialization - will set at runtime if needed");
+    console.log("[WB Composer Placeholders] Current translations (from locale files or overrides):", {
       wb_reply_placeholder: I18n.translations[locale].js.composer.wb_reply_placeholder,
       wb_topic_placeholder: I18n.translations[locale].js.composer.wb_topic_placeholder,
       wb_pm_placeholder: I18n.translations[locale].js.composer.wb_pm_placeholder,
-      note: existingReply ? "Override preserved" : "Default set"
+      note: "These come from locale files or will be set at runtime if missing"
     });
   } else {
     console.log("[WB Composer Placeholders] Skipping translation setup - not enabled or no locale");
@@ -238,42 +228,45 @@ try {
           
           console.log("[WB Composer Placeholders] ===== RUNTIME DEEP INSPECTION =====", runtimeInspection);
           
-          // Check if override exists in override system
-          const overrideValue = I18n.overrides?.[currentLocale]?.js?.composer?.[fullKeyName];
-          const hasOverride = !!overrideValue;
+          // Try to get translation via I18n.t() first - this respects overrides
+          let translated = I18n.t(translationKey);
           
-          console.log("[WB Composer Placeholders] Override detection:", {
-            hasOverride,
-            overrideValue,
-            overrideLocation: hasOverride ? "I18n.overrides" : "not found",
+          // Check if I18n.t() returned the "missing translation" format [locale.key]
+          // This means the translation doesn't exist and we need to set a default
+          const isMissingTranslation = translated.startsWith(`[${currentLocale}.`) && translated.endsWith(']');
+          
+          console.log("[WB Composer Placeholders] Translation check:", {
+            translationKey,
+            viaI18nT: translated,
+            isMissingTranslation,
             directAccess: I18n.translations[currentLocale]?.js?.composer?.[fullKeyName],
-            recommendation: hasOverride ? "Use override value" : "Use default or set default"
+            note: isMissingTranslation ? "Translation missing - will set default" : "Translation found (may be override)"
           });
           
-          // Ensure translation exists - set default if missing (overrides will still work via I18n.t())
-          // But DON'T overwrite if override exists
-          if (!I18n.translations[currentLocale]?.js?.composer?.[fullKeyName] && !hasOverride) {
-            if (currentLang === "en") {
-              I18n.translations[currentLocale].js.composer[fullKeyName] ||= 
-                translationKeyName === "pm" ? "Write a private message…" :
-                translationKeyName === "topic" ? "Start a new topic…" :
-                "Write your reply…";
-            } else if (currentLang === "ru") {
-              I18n.translations[currentLocale].js.composer[fullKeyName] ||= 
-                translationKeyName === "pm" ? "Напишите личное сообщение…" :
-                translationKeyName === "topic" ? "Создайте новую тему…" :
-                "Напишите ответ…";
-            }
-          }
-          
-          // Use override if it exists, otherwise use I18n.t() which should respect overrides
-          let translated;
-          if (hasOverride) {
-            console.log("[WB Composer Placeholders] Using override value:", overrideValue);
-            translated = overrideValue;
+          // Only set default if translation is missing (I18n.t() returned [locale.key] format)
+          // This ensures we don't overwrite overrides
+          if (isMissingTranslation) {
+            const defaultValue = currentLang === "en" ? (
+              translationKeyName === "pm" ? "Write a private message…" :
+              translationKeyName === "topic" ? "Start a new topic…" :
+              "Write your reply…"
+            ) : (
+              translationKeyName === "pm" ? "Напишите личное сообщение…" :
+              translationKeyName === "topic" ? "Создайте новую тему…" :
+              "Напишите ответ…"
+            );
+            
+            // Set the default
+            I18n.translations[currentLocale].js.composer[fullKeyName] = defaultValue;
+            translated = defaultValue;
+            
+            console.log("[WB Composer Placeholders] Set default translation:", {
+              key: fullKeyName,
+              value: defaultValue,
+              reason: "I18n.t() returned missing translation format"
+            });
           } else {
-            translated = I18n.t(translationKey);
-            console.log("[WB Composer Placeholders] Using I18n.t() result:", translated);
+            console.log("[WB Composer Placeholders] Using existing translation (from locale file or override):", translated);
           }
           
           const finalValue = I18n.translations[currentLocale]?.js?.composer?.[fullKeyName];
