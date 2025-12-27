@@ -57,10 +57,51 @@ try {
     const existingTopic = I18n.translations[locale].js.composer.wb_topic_placeholder;
     const existingPm = I18n.translations[locale].js.composer.wb_pm_placeholder;
     
+    // Deep inspection of I18n structure to find overrides
+    const fullI18nInspection = {
+      hasOverrides: !!I18n.overrides,
+      overridesStructure: I18n.overrides ? Object.keys(I18n.overrides) : null,
+      overridesForLocale: I18n.overrides?.[locale],
+      translationsStructure: {
+        hasLocale: !!I18n.translations[locale],
+        localeKeys: I18n.translations[locale] ? Object.keys(I18n.translations[locale]) : [],
+        hasJs: !!I18n.translations[locale]?.js,
+        jsKeys: I18n.translations[locale]?.js ? Object.keys(I18n.translations[locale].js) : [],
+        hasComposer: !!I18n.translations[locale]?.js?.composer,
+        composerKeys: I18n.translations[locale]?.js?.composer ? Object.keys(I18n.translations[locale].js.composer) : []
+      },
+      // Check for override methods
+      hasMissing: typeof I18n.missing === 'function',
+      hasLookup: typeof I18n.lookup === 'function',
+      I18nMethods: Object.keys(I18n).filter(k => typeof I18n[k] === 'function')
+    };
+    
+    console.log("[WB Composer Placeholders] ===== DEEP I18n INSPECTION =====", fullI18nInspection);
+    
+    // Try to find overrides in different possible locations
+    const overrideChecks = {
+      direct: {
+        wb_reply_placeholder: existingReply,
+        wb_topic_placeholder: existingTopic,
+        wb_pm_placeholder: existingPm
+      },
+      viaI18nT: {
+        wb_reply_placeholder: I18n.t("composer.wb_reply_placeholder"),
+        wb_topic_placeholder: I18n.t("composer.wb_topic_placeholder"),
+        wb_pm_placeholder: I18n.t("composer.wb_pm_placeholder")
+      },
+      fullPath: {
+        wb_reply_placeholder: I18n.t("js.composer.wb_reply_placeholder"),
+        wb_topic_placeholder: I18n.t("js.composer.wb_topic_placeholder"),
+        wb_pm_placeholder: I18n.t("js.composer.wb_pm_placeholder")
+      }
+    };
+    
     console.log("[WB Composer Placeholders] Existing translations (before setting defaults):", {
-      wb_reply_placeholder: existingReply,
-      wb_topic_placeholder: existingTopic,
-      wb_pm_placeholder: existingPm
+      directAccess: overrideChecks.direct,
+      viaI18nT_composer: overrideChecks.viaI18nT,
+      viaI18nT_js_composer: overrideChecks.fullPath,
+      note: "Checking multiple access methods to find overrides"
     });
     
     // Set defaults only if they don't exist (using ||= which only sets if falsy/undefined)
@@ -168,34 +209,84 @@ try {
           
           // Check if translation exists at runtime (overrides might load after initialization)
           const translationKeyName = translationKey.replace("composer.wb_", "").replace("_placeholder", "");
-          const directAccess = I18n.translations[currentLocale]?.js?.composer?.[`wb_${translationKeyName}_placeholder`];
+          const fullKeyName = `wb_${translationKeyName}_placeholder`;
           
-          // Ensure translation exists - set default if missing (overrides will still work via I18n.t())
-          if (!directAccess && currentLang === "en") {
-            I18n.translations[currentLocale].js.composer[`wb_${translationKeyName}_placeholder`] ||= 
-              translationKeyName === "pm" ? "Write a private message…" :
-              translationKeyName === "topic" ? "Start a new topic…" :
-              "Write your reply…";
-          } else if (!directAccess && currentLang === "ru") {
-            I18n.translations[currentLocale].js.composer[`wb_${translationKeyName}_placeholder`] ||= 
-              translationKeyName === "pm" ? "Напишите личное сообщение…" :
-              translationKeyName === "topic" ? "Создайте новую тему…" :
-              "Напишите ответ…";
-          }
-          
-          // Use I18n.t() to get the translation - this respects overrides from /admin/customize/text
-          const translated = I18n.t(translationKey);
-          
-          const finalValue = I18n.translations[currentLocale]?.js?.composer?.[`wb_${translationKeyName}_placeholder`];
-          
-          console.log("[WB Composer Placeholders] Translation resolution:", {
+          // Deep inspection at runtime
+          const runtimeInspection = {
             translationKey,
             translationKeyName,
-            existedBefore: !!directAccess,
-            valueBefore: directAccess,
-            valueAfter: finalValue,
-            viaI18nT: translated,
-            note: directAccess ? "Translation existed (possibly override)" : "Default was set"
+            fullKeyName,
+            directAccess: I18n.translations[currentLocale]?.js?.composer?.[fullKeyName],
+            viaI18nT_composer: I18n.t(translationKey),
+            viaI18nT_full: I18n.t(`js.${translationKey}`),
+            fullPath: `js.${translationKey}`,
+            I18nOverrides: I18n.overrides?.[currentLocale],
+            I18nOverridesJs: I18n.overrides?.[currentLocale]?.js,
+            I18nOverridesComposer: I18n.overrides?.[currentLocale]?.js?.composer,
+            I18nOverridesValue: I18n.overrides?.[currentLocale]?.js?.composer?.[fullKeyName],
+            // Check all possible override locations
+            allComposerKeys: Object.keys(I18n.translations[currentLocale]?.js?.composer || {}),
+            allComposerValues: Object.entries(I18n.translations[currentLocale]?.js?.composer || {}).filter(([k]) => k.includes('wb_')),
+            // Check if I18n has override methods
+            I18nStructure: {
+              hasOverrides: !!I18n.overrides,
+              overrideKeys: I18n.overrides ? Object.keys(I18n.overrides) : [],
+              hasTranslations: !!I18n.translations,
+              translationKeys: I18n.translations ? Object.keys(I18n.translations) : []
+            }
+          };
+          
+          console.log("[WB Composer Placeholders] ===== RUNTIME DEEP INSPECTION =====", runtimeInspection);
+          
+          // Check if override exists in override system
+          const overrideValue = I18n.overrides?.[currentLocale]?.js?.composer?.[fullKeyName];
+          const hasOverride = !!overrideValue;
+          
+          console.log("[WB Composer Placeholders] Override detection:", {
+            hasOverride,
+            overrideValue,
+            overrideLocation: hasOverride ? "I18n.overrides" : "not found",
+            directAccess: I18n.translations[currentLocale]?.js?.composer?.[fullKeyName],
+            recommendation: hasOverride ? "Use override value" : "Use default or set default"
+          });
+          
+          // Ensure translation exists - set default if missing (overrides will still work via I18n.t())
+          // But DON'T overwrite if override exists
+          if (!I18n.translations[currentLocale]?.js?.composer?.[fullKeyName] && !hasOverride) {
+            if (currentLang === "en") {
+              I18n.translations[currentLocale].js.composer[fullKeyName] ||= 
+                translationKeyName === "pm" ? "Write a private message…" :
+                translationKeyName === "topic" ? "Start a new topic…" :
+                "Write your reply…";
+            } else if (currentLang === "ru") {
+              I18n.translations[currentLocale].js.composer[fullKeyName] ||= 
+                translationKeyName === "pm" ? "Напишите личное сообщение…" :
+                translationKeyName === "topic" ? "Создайте новую тему…" :
+                "Напишите ответ…";
+            }
+          }
+          
+          // Use override if it exists, otherwise use I18n.t() which should respect overrides
+          let translated;
+          if (hasOverride) {
+            console.log("[WB Composer Placeholders] Using override value:", overrideValue);
+            translated = overrideValue;
+          } else {
+            translated = I18n.t(translationKey);
+            console.log("[WB Composer Placeholders] Using I18n.t() result:", translated);
+          }
+          
+          const finalValue = I18n.translations[currentLocale]?.js?.composer?.[fullKeyName];
+          
+          console.log("[WB Composer Placeholders] Final translation resolution:", {
+            translationKey,
+            translationKeyName,
+            hasOverride,
+            overrideValue,
+            directAccess: finalValue,
+            viaI18nT: I18n.t(translationKey),
+            finalResult: translated,
+            note: hasOverride ? "Override used" : (finalValue ? "Default/translation used" : "Fallback used")
           });
           
           // Return the translated string directly (I18n.t() handles overrides)
