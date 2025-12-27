@@ -43,61 +43,30 @@ try {
     enabled
   });
 
-  // Only define translations for EN/RU. Other locales stay untouched.
+  // Note: We no longer set JavaScript defaults here.
+  // Defaults should come from locale files (locales/en.yml, locales/ru.yml).
+  // This allows /admin/customize/text overrides to work correctly.
+  // The locale files are automatically loaded by Discourse.
+  
+  console.log("[WB Composer Placeholders] Translation setup:", {
+    locale,
+    lang,
+    enabled,
+    note: "Defaults come from locale files, overrides from /admin/customize/text will take precedence"
+  });
+  
+  // Just ensure the structure exists (but don't set values - let locale files and overrides handle that)
   if (enabled && locale) {
-    console.log("[WB Composer Placeholders] Setting up translations for locale:", locale);
-    
     I18n.translations[locale] ||= {};
     I18n.translations[locale].js ||= {};
     I18n.translations[locale].js.composer ||= {};
-
-    if (lang === "en") {
-      // Only set if not already overridden via /admin/customize/text
-      const existingReply = I18n.translations[locale].js.composer.wb_reply_placeholder;
-      const existingTopic = I18n.translations[locale].js.composer.wb_topic_placeholder;
-      const existingPm = I18n.translations[locale].js.composer.wb_pm_placeholder;
-      
-      console.log("[WB Composer Placeholders] English translations - existing values:", {
-        wb_reply_placeholder: existingReply,
-        wb_topic_placeholder: existingTopic,
-        wb_pm_placeholder: existingPm
-      });
-      
-      I18n.translations[locale].js.composer.wb_reply_placeholder ||= "Write your reply…";
-      I18n.translations[locale].js.composer.wb_topic_placeholder ||= "Start a new topic…";
-      I18n.translations[locale].js.composer.wb_pm_placeholder ||= "Write a private message…";
-      
-      console.log("[WB Composer Placeholders] English translations - after setting:", {
-        wb_reply_placeholder: I18n.translations[locale].js.composer.wb_reply_placeholder,
-        wb_topic_placeholder: I18n.translations[locale].js.composer.wb_topic_placeholder,
-        wb_pm_placeholder: I18n.translations[locale].js.composer.wb_pm_placeholder
-      });
-    }
-
-    if (lang === "ru") {
-      // Only set if not already overridden via /admin/customize/text
-      const existingReply = I18n.translations[locale].js.composer.wb_reply_placeholder;
-      const existingTopic = I18n.translations[locale].js.composer.wb_topic_placeholder;
-      const existingPm = I18n.translations[locale].js.composer.wb_pm_placeholder;
-      
-      console.log("[WB Composer Placeholders] Russian translations - existing values:", {
-        wb_reply_placeholder: existingReply,
-        wb_topic_placeholder: existingTopic,
-        wb_pm_placeholder: existingPm
-      });
-      
-      I18n.translations[locale].js.composer.wb_reply_placeholder ||= "Напишите ответ…";
-      I18n.translations[locale].js.composer.wb_topic_placeholder ||= "Создайте новую тему…";
-      I18n.translations[locale].js.composer.wb_pm_placeholder ||= "Напишите личное сообщение…";
-      
-      console.log("[WB Composer Placeholders] Russian translations - after setting:", {
-        wb_reply_placeholder: I18n.translations[locale].js.composer.wb_reply_placeholder,
-        wb_topic_placeholder: I18n.translations[locale].js.composer.wb_topic_placeholder,
-        wb_pm_placeholder: I18n.translations[locale].js.composer.wb_pm_placeholder
-      });
-    }
-  } else {
-    console.log("[WB Composer Placeholders] Skipping translation setup - not enabled or no locale");
+    
+    console.log("[WB Composer Placeholders] Translation structure ensured. Checking existing values:", {
+      wb_reply_placeholder: I18n.translations[locale].js.composer.wb_reply_placeholder,
+      wb_topic_placeholder: I18n.translations[locale].js.composer.wb_topic_placeholder,
+      wb_pm_placeholder: I18n.translations[locale].js.composer.wb_pm_placeholder,
+      source: "from locale files or overrides"
+    });
   }
 
   try {
