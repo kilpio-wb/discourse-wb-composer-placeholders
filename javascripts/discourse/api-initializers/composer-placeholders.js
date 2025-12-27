@@ -194,7 +194,25 @@ try {
           }
           
           console.log("[WB Composer Placeholders] Returning translation key:", result);
-          console.log("[WB Composer Placeholders] I18n.t() would return:", I18n.t(result));
+          
+          // Deep check of I18n structure to find overrides
+          const fullTranslationPath = `js.composer.wb_${isPm ? 'pm' : creatingTopic ? 'topic' : 'reply'}_placeholder`;
+          const directAccess = I18n.translations[currentLocale]?.js?.composer?.[`wb_${isPm ? 'pm' : creatingTopic ? 'topic' : 'reply'}_placeholder`];
+          const viaI18nT = I18n.t(result);
+          
+          console.log("[WB Composer Placeholders] Translation resolution:", {
+            key: result,
+            fullPath: fullTranslationPath,
+            directAccess: directAccess,
+            viaI18nT: viaI18nT,
+            I18nOverrides: I18n.overrides ? I18n.overrides[currentLocale] : "no overrides object",
+            allComposerKeys: Object.keys(I18n.translations[currentLocale]?.js?.composer || {}),
+            I18nTranslationsStructure: {
+              hasLocale: !!I18n.translations[currentLocale],
+              hasJs: !!I18n.translations[currentLocale]?.js,
+              hasComposer: !!I18n.translations[currentLocale]?.js?.composer
+            }
+          });
           
           return result;
         }
