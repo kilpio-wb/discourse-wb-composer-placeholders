@@ -228,24 +228,54 @@ try {
           
           console.log("[WB Composer Placeholders] ===== RUNTIME DEEP INSPECTION =====", runtimeInspection);
           
-          // Try to get translation via I18n.t() first - this respects overrides
+          // Try to get translation via I18n.t() first - this should respect theme translation overrides
+          // Check BEFORE we set any defaults to see if override exists
           let translated = I18n.t(translationKey);
+          
+          // Also try the full path format
+          const translatedFullPath = I18n.t(`js.${translationKey}`);
           
           // Check if I18n.t() returned the "missing translation" format [locale.key]
           // This means the translation doesn't exist and we need to set a default
           const isMissingTranslation = translated.startsWith(`[${currentLocale}.`) && translated.endsWith(']');
+          const isMissingFullPath = translatedFullPath.startsWith(`[${currentLocale}.`) && translatedFullPath.endsWith(']');
           
-          console.log("[WB Composer Placeholders] Translation check:", {
+          // Deep check for theme translation overrides
+          const directAccess = I18n.translations[currentLocale]?.js?.composer?.[fullKeyName];
+          
+          // Check if there's a theme override system (Discourse might store theme overrides separately)
+          const themeOverrideCheck = {
+            hasI18nExtras: typeof I18n.extras !== 'undefined',
+            hasI18nMissing: typeof I18n.missing !== 'undefined',
+            hasI18nLookup: typeof I18n.lookup === 'function',
+            lookupResult: typeof I18n.lookup === 'function' ? I18n.lookup(translationKey, { locale: currentLocale }) : null,
+            lookupResultFull: typeof I18n.lookup === 'function' ? I18n.lookup(`js.${translationKey}`, { locale: currentLocale }) : null,
+            // Check all possible I18n properties
+            I18nKeys: Object.keys(I18n).filter(k => !k.startsWith('_')),
+            // Check if there's a translations_override or similar
+            hasTranslationsOverride: typeof I18n.translations_override !== 'undefined',
+            translationsOverride: I18n.translations_override?.[currentLocale]?.js?.composer?.[fullKeyName]
+          };
+          
+          console.log("[WB Composer Placeholders] ===== THEME OVERRIDE DETECTION =====", {
             translationKey,
-            viaI18nT: translated,
+            fullPath: `js.${translationKey}`,
+            viaI18nT_composer: translated,
+            viaI18nT_fullPath: translatedFullPath,
             isMissingTranslation,
-            directAccess: I18n.translations[currentLocale]?.js?.composer?.[fullKeyName],
-            note: isMissingTranslation ? "Translation missing - will set default" : "Translation found (may be override)"
+            isMissingFullPath,
+            directAccess,
+            themeOverrideCheck,
+            recommendation: isMissingTranslation && isMissingFullPath ? "No override found, will set default" : "Override may exist, check values above"
           });
           
-          // Only set default if translation is missing (I18n.t() returned [locale.key] format)
+          // Use the translation that was found (either from override or locale file)
+          // If both are missing, use the one that's not missing, or prefer fullPath if available
+          const finalTranslated = !isMissingFullPath ? translatedFullPath : (!isMissingTranslation ? translated : null);
+          
+          // Only set default if BOTH translation attempts returned missing format
           // This ensures we don't overwrite overrides
-          if (isMissingTranslation) {
+          if (isMissingTranslation && isMissingFullPath && !directAccess && !themeOverrideCheck.translationsOverride) {
             const defaultValue = currentLang === "en" ? (
               translationKeyName === "pm" ? "Write a private message…" :
               translationKeyName === "topic" ? "Start a new topic…" :
@@ -263,23 +293,48 @@ try {
               key: fullKeyName,
               translationKey: translationKey,
               value: defaultValue,
-              reason: "I18n.t() returned missing translation format"
+              reason: "No override, locale file, or existing translation found - setting default"
             });
           } else {
-            console.log("[WB Composer Placeholders] Using existing translation (from locale file or override):", translated);
+            // An override or existing translation was found
+            const source = themeOverrideCheck.translationsOverride ? "theme override" :
+                          directAccess ? "direct access (locale file or previously set)" :
+                          !isMissingFullPath ? "I18n.t() full path" :
+                          !isMissingTranslation ? "I18n.t() composer path" : "unknown";
+            
+            console.log("[WB Composer Placeholders] Using existing translation:", {
+              source: source,
+              value: finalTranslated || directAccess || themeOverrideCheck.translationsOverride,
+              translationKey: translationKey,
+              note: "Override or locale file translation found - using it"
+            });
+            
+            // If we found a translation via I18n.t() but it's not in direct access, 
+            // make sure it's stored so future calls work
+            if (finalTranslated && !isMissingTranslation && !directAccess) {
+              I18n.translations[currentLocale].js.composer[fullKeyName] = finalTranslated;
+              console.log("[WB Composer Placeholders] Cached translation for future use:", finalTranslated);
+            }
           }
           
           // Verify the translation is now available
           const finalValue = I18n.translations[currentLocale]?.js?.composer?.[fullKeyName];
           const verifyI18nT = I18n.t(translationKey);
+          const verifyI18nTFull = I18n.t(`js.${translationKey}`);
           
-          console.log("[WB Composer Placeholders] Final translation resolution:", {
+          console.log("[WB Composer Placeholders] ===== FINAL TRANSLATION RESOLUTION =====", {
             translationKey,
             translationKeyName,
             directAccess: finalValue,
-            viaI18nT: verifyI18nT,
-            wasMissing: isMissingTranslation,
-            note: isMissingTranslation ? "Default was set, returning key for component to translate" : (finalValue ? "Translation found (locale file or override)" : "Using I18n.t() result")
+            viaI18nT_composer: verifyI18nT,
+            viaI18nT_fullPath: verifyI18nTFull,
+            wasMissing: isMissingTranslation && isMissingFullPath,
+            themeOverrideFound: !!themeOverrideCheck.translationsOverride,
+            finalTranslation: finalValue || verifyI18nTFull || verifyI18nT,
+            note: (isMissingTranslation && isMissingFullPath) ? "Default was set" : 
+                  themeOverrideCheck.translationsOverride ? "Theme override used" :
+                  finalValue ? "Translation found (locale file or cached)" : 
+                  "Using I18n.t() result"
           });
           
           // Return the translation key - the component will call I18n.t() on it
