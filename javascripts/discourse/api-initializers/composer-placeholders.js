@@ -154,54 +154,52 @@ try {
             replyingToTopic
           });
           
-          // Check if translations exist
-          const translationPath = `js.composer.wb_${isPm ? 'pm' : creatingTopic ? 'topic' : 'reply'}_placeholder`;
-          const translationKey = `composer.wb_${isPm ? 'pm' : creatingTopic ? 'topic' : 'reply'}_placeholder`;
-          const translationExists = I18n.translations[currentLocale]?.js?.composer?.[`wb_${isPm ? 'pm' : creatingTopic ? 'topic' : 'reply'}_placeholder`];
-          
-          console.log("[WB Composer Placeholders] Translation check:", {
-            translationPath,
-            translationKey,
-            translationExists,
-            fullPath: I18n.translations[currentLocale]?.js?.composer
-          });
-          
-          // Return translation keys - the component will translate them using I18n.t()
-          // Overrides from /admin/customize/text will be respected when I18n.t() is called
-          // Note: Discourse automatically looks in js.* namespace, so we use "composer.*" format
-          let result;
+          // Determine which translation key to use
+          let translationKey;
           if (isPm) {
-            result = "composer.wb_pm_placeholder";
+            translationKey = "composer.wb_pm_placeholder";
           } else if (creatingTopic) {
-            result = "composer.wb_topic_placeholder";
+            translationKey = "composer.wb_topic_placeholder";
           } else if (replyingToTopic) {
-            result = "composer.wb_reply_placeholder";
+            translationKey = "composer.wb_reply_placeholder";
           } else {
-            result = "composer.wb_reply_placeholder";
+            translationKey = "composer.wb_reply_placeholder";
           }
           
-          console.log("[WB Composer Placeholders] Returning translation key:", result);
+          // Check if translation exists at runtime (overrides might load after initialization)
+          const translationKeyName = translationKey.replace("composer.wb_", "").replace("_placeholder", "");
+          const directAccess = I18n.translations[currentLocale]?.js?.composer?.[`wb_${translationKeyName}_placeholder`];
           
-          // Deep check of I18n structure to find overrides
-          const fullTranslationPath = `js.composer.wb_${isPm ? 'pm' : creatingTopic ? 'topic' : 'reply'}_placeholder`;
-          const directAccess = I18n.translations[currentLocale]?.js?.composer?.[`wb_${isPm ? 'pm' : creatingTopic ? 'topic' : 'reply'}_placeholder`];
-          const viaI18nT = I18n.t(result);
+          // Ensure translation exists - set default if missing (overrides will still work via I18n.t())
+          if (!directAccess && currentLang === "en") {
+            I18n.translations[currentLocale].js.composer[`wb_${translationKeyName}_placeholder`] ||= 
+              translationKeyName === "pm" ? "Write a private message…" :
+              translationKeyName === "topic" ? "Start a new topic…" :
+              "Write your reply…";
+          } else if (!directAccess && currentLang === "ru") {
+            I18n.translations[currentLocale].js.composer[`wb_${translationKeyName}_placeholder`] ||= 
+              translationKeyName === "pm" ? "Напишите личное сообщение…" :
+              translationKeyName === "topic" ? "Создайте новую тему…" :
+              "Напишите ответ…";
+          }
+          
+          // Use I18n.t() to get the translation - this respects overrides from /admin/customize/text
+          const translated = I18n.t(translationKey);
+          
+          const finalValue = I18n.translations[currentLocale]?.js?.composer?.[`wb_${translationKeyName}_placeholder`];
           
           console.log("[WB Composer Placeholders] Translation resolution:", {
-            key: result,
-            fullPath: fullTranslationPath,
-            directAccess: directAccess,
-            viaI18nT: viaI18nT,
-            I18nOverrides: I18n.overrides ? I18n.overrides[currentLocale] : "no overrides object",
-            allComposerKeys: Object.keys(I18n.translations[currentLocale]?.js?.composer || {}),
-            I18nTranslationsStructure: {
-              hasLocale: !!I18n.translations[currentLocale],
-              hasJs: !!I18n.translations[currentLocale]?.js,
-              hasComposer: !!I18n.translations[currentLocale]?.js?.composer
-            }
+            translationKey,
+            translationKeyName,
+            existedBefore: !!directAccess,
+            valueBefore: directAccess,
+            valueAfter: finalValue,
+            viaI18nT: translated,
+            note: directAccess ? "Translation existed (possibly override)" : "Default was set"
           });
           
-          return result;
+          // Return the translated string directly (I18n.t() handles overrides)
+          return translated;
         }
       };
     });
