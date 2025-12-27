@@ -1,7 +1,6 @@
 import { apiInitializer } from "discourse/lib/api";
 import I18n from "I18n";
 import discourseComputed from "discourse-common/utils/decorators";
-import { themePrefix } from "discourse/lib/theme-prefix";
 
 // This will execute as soon as the module loads - if you see this, the file is being loaded
 console.log("[WB Composer Placeholders] ===== MODULE LOADED ===== File is being executed");
