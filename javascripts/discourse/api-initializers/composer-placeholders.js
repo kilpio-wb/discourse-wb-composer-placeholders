@@ -18,8 +18,20 @@ try {
     console.log("[WB Composer Placeholders] API received:", {
       hasApi: !!api,
       hasModifyClass: typeof api?.modifyClass,
-      apiKeys: api ? Object.keys(api) : []
+      apiKeys: api ? Object.keys(api) : [],
+      fullApi: api // Log full API to see what's available
     });
+    
+    // Check if API has theme-related methods
+    if (api) {
+      console.log("[WB Composer Placeholders] API inspection:", {
+        hasGetTranslations: typeof api.getTranslations === 'function',
+        hasGetThemeTranslations: typeof api.getThemeTranslations === 'function',
+        hasTheme: !!api.theme,
+        themeKeys: api.theme ? Object.keys(api.theme) : [],
+        allApiProperties: Object.getOwnPropertyNames(api)
+      });
+    }
   
   // Defensive check for I18n availability
   if (!I18n || !I18n.translations) {
@@ -244,6 +256,7 @@ try {
           const directAccess = I18n.translations[currentLocale]?.js?.composer?.[fullKeyName];
           
           // Check if there's a theme override system (Discourse might store theme overrides separately)
+          // Also check window.Discourse for theme settings
           const themeOverrideCheck = {
             hasI18nExtras: typeof I18n.extras !== 'undefined',
             hasI18nMissing: typeof I18n.missing !== 'undefined',
@@ -254,8 +267,33 @@ try {
             I18nKeys: Object.keys(I18n).filter(k => !k.startsWith('_')),
             // Check if there's a translations_override or similar
             hasTranslationsOverride: typeof I18n.translations_override !== 'undefined',
-            translationsOverride: I18n.translations_override?.[currentLocale]?.js?.composer?.[fullKeyName]
+            translationsOverride: I18n.translations_override?.[currentLocale]?.js?.composer?.[fullKeyName],
+            // Check Discourse global object
+            hasDiscourse: typeof window.Discourse !== 'undefined',
+            DiscourseKeys: typeof window.Discourse !== 'undefined' ? Object.keys(window.Discourse) : [],
+            // Check if there's a SiteSettings or similar
+            hasSiteSettings: typeof window.SiteSettings !== 'undefined',
+            // Check for theme translations in different locations
+            I18nAllLocales: I18n.translations ? Object.keys(I18n.translations) : [],
+            // Try to find the override by searching all locales
+            searchAllLocales: I18n.translations ? Object.keys(I18n.translations).map(loc => ({
+              locale: loc,
+              value: I18n.translations[loc]?.js?.composer?.[fullKeyName]
+            })).filter(x => x.value) : []
           };
+          
+          // Also try to access via the component's API if available
+          // Check if we can get theme translations from the component context
+          let componentThemeOverride = null;
+          try {
+            // Try to access via Discourse's theme system
+            if (typeof window.Discourse !== 'undefined' && window.Discourse.SiteSettings) {
+              // Theme translations might be in a different structure
+              console.log("[WB Composer Placeholders] Checking Discourse.SiteSettings for theme translations");
+            }
+          } catch (e) {
+            console.log("[WB Composer Placeholders] Error checking Discourse object:", e);
+          }
           
           console.log("[WB Composer Placeholders] ===== THEME OVERRIDE DETECTION =====", {
             translationKey,
@@ -266,8 +304,32 @@ try {
             isMissingFullPath,
             directAccess,
             themeOverrideCheck,
-            recommendation: isMissingTranslation && isMissingFullPath ? "No override found, will set default" : "Override may exist, check values above"
+            componentThemeOverride,
+            recommendation: isMissingTranslation && isMissingFullPath ? "No override found, will set default" : "Override may exist, check values above",
+            note: "If override is set in component settings but not found here, it may be loaded asynchronously or stored differently"
           });
+          
+          // Check if override exists but wasn't found - maybe it's loaded later
+          // Try to manually check if I18n.t() with options might work
+          let overrideValue = null;
+          try {
+            // Sometimes overrides are merged into translations but I18n.t() needs to be called differently
+            // Try checking if the value exists after a small delay or in a different structure
+            const allTranslations = I18n.translations;
+            const allLocales = Object.keys(allTranslations || {});
+            console.log("[WB Composer Placeholders] Searching all locales for override:", {
+              locales: allLocales,
+              searchingFor: fullKeyName,
+              foundInLocales: allLocales.map(loc => ({
+                locale: loc,
+                hasJs: !!allTranslations[loc]?.js,
+                hasComposer: !!allTranslations[loc]?.js?.composer,
+                value: allTranslations[loc]?.js?.composer?.[fullKeyName]
+              })).filter(x => x.value)
+            });
+          } catch (e) {
+            console.log("[WB Composer Placeholders] Error searching translations:", e);
+          }
           
           // Use the translation that was found (either from override or locale file)
           // If both are missing, use the one that's not missing, or prefer fullPath if available
