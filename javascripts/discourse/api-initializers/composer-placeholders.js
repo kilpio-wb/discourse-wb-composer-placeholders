@@ -29,8 +29,18 @@ try {
         hasGetThemeTranslations: typeof api.getThemeTranslations === 'function',
         hasTheme: !!api.theme,
         themeKeys: api.theme ? Object.keys(api.theme) : [],
-        allApiProperties: Object.getOwnPropertyNames(api)
+        allApiProperties: Object.getOwnPropertyNames(api),
+        fullApiObject: api // Log full API to inspect
       });
+      
+      // Try to access theme translations if available
+      if (api.theme) {
+        console.log("[WB Composer Placeholders] Theme object found:", {
+          themeType: typeof api.theme,
+          themeValue: api.theme,
+          themeKeys: Object.keys(api.theme || {})
+        });
+      }
     }
   
   // Defensive check for I18n availability
@@ -242,15 +252,36 @@ try {
           
           // Try to get translation via I18n.t() first - this should respect theme translation overrides
           // Check BEFORE we set any defaults to see if override exists
+          // Try multiple times with a small delay to catch async-loaded overrides
           let translated = I18n.t(translationKey);
-          
-          // Also try the full path format
-          const translatedFullPath = I18n.t(`js.${translationKey}`);
+          let translatedFullPath = I18n.t(`js.${translationKey}`);
           
           // Check if I18n.t() returned the "missing translation" format [locale.key]
           // This means the translation doesn't exist and we need to set a default
-          const isMissingTranslation = translated.startsWith(`[${currentLocale}.`) && translated.endsWith(']');
-          const isMissingFullPath = translatedFullPath.startsWith(`[${currentLocale}.`) && translatedFullPath.endsWith(']');
+          let isMissingTranslation = translated.startsWith(`[${currentLocale}.`) && translated.endsWith(']');
+          let isMissingFullPath = translatedFullPath.startsWith(`[${currentLocale}.`) && translatedFullPath.endsWith(']');
+          
+          // If missing, wait a bit and check again (theme overrides might load asynchronously)
+          if (isMissingTranslation && isMissingFullPath) {
+            // Use a microtask to check again after current execution
+            Promise.resolve().then(() => {
+              const retryTranslated = I18n.t(translationKey);
+              const retryTranslatedFull = I18n.t(`js.${translationKey}`);
+              const retryDirect = I18n.translations[currentLocale]?.js?.composer?.[fullKeyName];
+              
+              if (!retryTranslated.startsWith(`[${currentLocale}.`) || 
+                  !retryTranslatedFull.startsWith(`[${currentLocale}.`) || 
+                  retryDirect) {
+                console.log("[WB Composer Placeholders] Override found on retry:", {
+                  translationKey,
+                  retryTranslated,
+                  retryTranslatedFull,
+                  retryDirect,
+                  note: "Override loaded asynchronously - will be used on next call"
+                });
+              }
+            });
+          }
           
           // Deep check for theme translation overrides
           const directAccess = I18n.translations[currentLocale]?.js?.composer?.[fullKeyName];
@@ -335,9 +366,27 @@ try {
           // If both are missing, use the one that's not missing, or prefer fullPath if available
           const finalTranslated = !isMissingFullPath ? translatedFullPath : (!isMissingTranslation ? translated : null);
           
-          // Only set default if BOTH translation attempts returned missing format
-          // This ensures we don't overwrite overrides
-          if (isMissingTranslation && isMissingFullPath && !directAccess && !themeOverrideCheck.translationsOverride) {
+          // Check one more time right before setting default - overrides might have loaded
+          // This is a final check to ensure we don't overwrite an override that just loaded
+          const finalCheckTranslated = I18n.t(translationKey);
+          const finalCheckTranslatedFull = I18n.t(`js.${translationKey}`);
+          const finalCheckDirect = I18n.translations[currentLocale]?.js?.composer?.[fullKeyName];
+          const finalIsMissing = finalCheckTranslated.startsWith(`[${currentLocale}.`) && finalCheckTranslated.endsWith(']');
+          const finalIsMissingFull = finalCheckTranslatedFull.startsWith(`[${currentLocale}.`) && finalCheckTranslatedFull.endsWith(']');
+          
+          console.log("[WB Composer Placeholders] Final check before setting default:", {
+            translationKey,
+            finalCheckTranslated,
+            finalCheckTranslatedFull,
+            finalCheckDirect,
+            finalIsMissing,
+            finalIsMissingFull,
+            note: "Checking one last time if override loaded"
+          });
+          
+          // Only set default if ALL checks (including final check) show missing
+          // This ensures we don't overwrite overrides that loaded between checks
+          if (finalIsMissing && finalIsMissingFull && !finalCheckDirect && !themeOverrideCheck.translationsOverride) {
             const defaultValue = currentLang === "en" ? (
               translationKeyName === "pm" ? "Write a private message…" :
               translationKeyName === "topic" ? "Start a new topic…" :
@@ -348,14 +397,20 @@ try {
               "Напишите ответ…"
             );
             
-            // Set the default translation
-            I18n.translations[currentLocale].js.composer[fullKeyName] = defaultValue;
+            // IMPORTANT: Use ||= instead of = to ensure we don't overwrite if override loaded
+            // This is a safety check - if an override loaded between our checks, ||= won't overwrite it
+            const existingBeforeSet = I18n.translations[currentLocale].js.composer[fullKeyName];
+            I18n.translations[currentLocale].js.composer[fullKeyName] ||= defaultValue;
+            const existingAfterSet = I18n.translations[currentLocale].js.composer[fullKeyName];
             
             console.log("[WB Composer Placeholders] Set default translation:", {
               key: fullKeyName,
               translationKey: translationKey,
-              value: defaultValue,
-              reason: "No override, locale file, or existing translation found - setting default"
+              valueBeforeSet: existingBeforeSet,
+              defaultValueAttempted: defaultValue,
+              valueAfterSet: existingAfterSet,
+              wasOverwritten: existingBeforeSet && existingBeforeSet !== existingAfterSet,
+              reason: existingBeforeSet ? "Override found at last moment, preserved" : "No override found - setting default"
             });
           } else {
             // An override or existing translation was found
