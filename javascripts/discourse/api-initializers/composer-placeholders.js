@@ -38,11 +38,8 @@ function getOwnTranslation(locale, key) {
 }
 
 function keyForContext({ creatingTopic, replyingToTopic, privateMessage, action }) {
-  // Validate themePrefix is available
-  if (typeof themePrefix !== 'function') {
+  if (typeof themePrefix !== "function") {
     console.error("[WB Composer Placeholders] themePrefix not available");
-    // Fallback to default Discourse behavior by returning undefined/null
-    // This will cause the component to use its default placeholder
     return null;
   }
 
@@ -52,15 +49,13 @@ function keyForContext({ creatingTopic, replyingToTopic, privateMessage, action 
   if (creatingTopic) return themePrefix("js.composer.wb_topic_placeholder");
   if (replyingToTopic) return themePrefix("js.composer.wb_reply_placeholder");
 
-  // Fallback: treat as reply
   return themePrefix("js.composer.wb_reply_placeholder");
 }
 
 export default apiInitializer("1.8.0", (api) => {
   log("MODULE LOADED");
 
-  // Validate themePrefix at initialization
-  if (typeof themePrefix !== 'function') {
+  if (typeof themePrefix !== "function") {
     console.error("[WB Composer Placeholders] themePrefix not available, component disabled");
     return;
   }
@@ -80,22 +75,24 @@ export default apiInitializer("1.8.0", (api) => {
           "composer.model.action"
         )
         replyPlaceholder(creatingTopic, replyingToTopic, privateMessage, action) {
-          // If I18n isn't available, fall back to core behavior
+          const s = super.replyPlaceholder;
+          const superValue = typeof s === "function"
+            ? s.call(this, creatingTopic, replyingToTopic, privateMessage, action)
+            : s;
+
           if (!I18n || typeof I18n.currentLocale !== "function") {
             log("I18n missing, using super");
-            return super.replyPlaceholder(creatingTopic, replyingToTopic, privateMessage, action);
+            return superValue;
           }
 
           const { locale, lang } = getLocaleLang();
 
-          // Keep core behavior intact for all other languages
           if (!isEnabledLang(lang)) {
-            return super.replyPlaceholder(creatingTopic, replyingToTopic, privateMessage, action);
+            return superValue;
           }
 
           const model = this.composer?.model;
 
-          // Use args first, then model fallback (defensive)
           const ctx = {
             creatingTopic: creatingTopic ?? model?.creatingTopic ?? false,
             replyingToTopic: replyingToTopic ?? model?.replyingToTopic ?? false,
@@ -105,22 +102,20 @@ export default apiInitializer("1.8.0", (api) => {
 
           const key = keyForContext(ctx);
 
-          // If keyForContext returned null (themePrefix unavailable), fall back to super
           if (key === null) {
-            return super.replyPlaceholder(creatingTopic, replyingToTopic, privateMessage, action);
+            return superValue;
           }
 
           const direct = getOwnTranslation(locale, key);
 
           if (typeof direct !== "string" || direct.trim().length === 0) {
-            return super.replyPlaceholder(creatingTopic, replyingToTopic, privateMessage, action);
+            return superValue;
           }
 
           log("replyPlaceholder ctx", { locale, lang, ...ctx });
           log("replyPlaceholder key", key);
           log("preview I18n.t(key)", I18n.t(key));
 
-          // Return a translation key, Discourse editor will translate it
           return key;
         }
       };
