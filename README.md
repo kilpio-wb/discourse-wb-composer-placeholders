@@ -27,7 +27,7 @@ This component overrides the `replyPlaceholder` method in Discourse's `composer-
 2. Open the **Components** tab.
 3. Click **Install**.
 4. Choose **From a Git repository**.
-5. Paste the repository URL: `https://github.com/kilpio-wb/discourse-wb-composer-placeholeders`
+5. Paste the repository URL: `https://github.com/kilpio-wb/discourse-wb-composer-placeholders`
 6. Click **Install**.
 7. Select themes  **Include component on these themes** to add the component to your active theme.
 
@@ -110,7 +110,7 @@ To add support for additional languages:
 ## File Structure
 
 ```
-discourse-wb-composer-placeholeders/
+discourse-wb-composer-placeholders/
 ├── about.json                                    # Theme component metadata
 ├── README.md                                     # This file
 ├── javascripts/
@@ -154,5 +154,5 @@ This component is provided as-is for use with Discourse forums.
 ## Support
 
 For issues or questions:
-- Check the [GitHub repository](https://github.com/kilpio-wb/discourse-wb-composer-placeholeders)
+- Check the [GitHub repository](https://github.com/kilpio-wb/discourse-wb-composer-placeholders)
 - Refer to your Discourse installation's support channels
