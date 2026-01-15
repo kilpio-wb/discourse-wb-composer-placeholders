@@ -43,6 +43,47 @@ function getLocaleLang() {
   }
 }
 
+function tNoFallbackForLocale(locale, key) {
+  if (!locale || !key || typeof I18n?.t !== "function") return undefined;
+
+  const hadFallbacks = Object.prototype.hasOwnProperty.call(I18n, "fallbacks");
+  const oldFallbacks = I18n.fallbacks;
+
+  const hadLocale = Object.prototype.hasOwnProperty.call(I18n, "locale");
+  const oldLocale = I18n.locale;
+
+  try {
+    if (hadFallbacks) I18n.fallbacks = false;
+
+    // Prefer per-call locale if supported by this I18n build
+    let v;
+    try {
+      v = I18n.t(key, { locale, defaultValue: null });
+    } catch {
+      v = undefined;
+    }
+
+    // If per-call locale is ignored, temporarily switch global locale
+    if (v == null && hadLocale) {
+      I18n.locale = locale;
+      v = I18n.t(key, { defaultValue: null });
+    }
+
+    if (typeof v === "string") {
+      const s = v.trim();
+      // Discourse sometimes returns a "missing" marker string; treat as missing
+      if (s.startsWith(`[${locale}.`) || s.startsWith("[missing") || s.startsWith("translation missing:")) {
+        return undefined;
+      }
+    }
+
+    return v;
+  } finally {
+    if (hadLocale) I18n.locale = oldLocale;
+    if (hadFallbacks) I18n.fallbacks = oldFallbacks;
+  }
+}
+
 function getTranslationValueForLocale(locale, key) {
   const root = I18n?.translations?.[locale];
   if (!root) return undefined;
@@ -51,55 +92,6 @@ function getTranslationValueForLocale(locale, key) {
     if (!obj || typeof obj !== "object" || !(part in obj)) return undefined;
     return obj[part];
   }, root);
-}
-
-function tNoFallbackForLocale(locale, key) {
-  if (!locale || !key || typeof I18n?.t !== "function") return undefined;
-
-  const hasLocaleProp = "locale" in I18n;
-  const oldLocale = hasLocaleProp ? I18n.locale : undefined;
-
-  const canToggleFallback = typeof I18n.enableFallback === "boolean";
-  const oldEnableFallback = canToggleFallback ? I18n.enableFallback : undefined;
-
-  try {
-    if (canToggleFallback) I18n.enableFallback = false;
-
-    // Try per-call locale first (harmless if ignored)
-    let v;
-    try {
-      v = I18n.t(key, { locale });
-    } catch {
-      v = undefined;
-    }
-
-    // If per-call locale is not supported, temporarily switch global locale
-    if (v == null && hasLocaleProp) {
-      I18n.locale = locale;
-      v = I18n.t(key);
-    } else if (v == null) {
-      v = I18n.t(key);
-    }
-
-    if (typeof v === "string") {
-      const s = v.trim();
-      // Consider various "missing translation" markers as missing
-      if (
-        s.startsWith(`[${locale}.`) ||
-        s.startsWith(`[${locale.replace(/-/g, "_")}.`) ||
-        s.startsWith("[missing") ||
-        s.startsWith("translation missing:") ||
-        s === key
-      ) {
-        return undefined;
-      }
-    }
-
-    return v;
-  } finally {
-    if (hasLocaleProp) I18n.locale = oldLocale;
-    if (canToggleFallback) I18n.enableFallback = oldEnableFallback;
-  }
 }
 
 function hasNonEmptyTranslation(locale, lang, key) {
@@ -111,6 +103,7 @@ function hasNonEmptyTranslation(locale, lang, key) {
   if (typeof v2 === "string") return v2.trim().length > 0;
   return v2 != null;
 }
+
 
 function probeTranslation(locale, lang, key) {
   const rootLocale = I18n?.translations?.[locale];
@@ -125,9 +118,6 @@ function probeTranslation(locale, lang, key) {
     rootLang && Object.prototype.hasOwnProperty.call(rootLang, key) ? rootLang[key] : undefined;
 
   const i18nValue = safeI18nT(key);
-  const i18nNoFallbackLocale = tNoFallbackForLocale(locale, key);
-  const i18nNoFallbackLang = lang && lang !== locale ? tNoFallbackForLocale(lang, key) : undefined;
-
 
   const leaf = String(key || "").split(".").slice(-1)[0] || "";
   const localeHints = rootLocale
@@ -146,8 +136,6 @@ function probeTranslation(locale, lang, key) {
     lang,
     key,
     i18nValue,
-    i18nNoFallbackLocale,
-    i18nNoFallbackLang,
     vLocaleWalk,
     vLangWalk,
     vLocaleFlat,
