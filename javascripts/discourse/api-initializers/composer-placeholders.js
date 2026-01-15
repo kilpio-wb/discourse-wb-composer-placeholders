@@ -15,8 +15,23 @@ function getLocaleLang() {
   }
 }
 
-function isEnabledLang(lang) {
-  return lang === "en" || lang === "ru";
+function getTranslationValueForLocale(locale, key) {
+  const root = I18n?.translations?.[locale];
+  if (!root) return undefined;
+
+  return key.split(".").reduce((obj, part) => {
+    if (!obj || typeof obj !== "object" || !(part in obj)) return undefined;
+    return obj[part];
+  }, root);
+}
+
+function hasNonEmptyTranslation(locale, lang, key) {
+  const v =
+    getTranslationValueForLocale(locale, key) ??
+    (lang && getTranslationValueForLocale(lang, key));
+
+  if (typeof v === "string") return v.trim().length > 0;
+  return v != null;
 }
 
 function keyForContext({ creatingTopic, replyingToTopic, privateMessage, action }) {
@@ -67,13 +82,6 @@ export default apiInitializer("1.8.0", (api) => {
 
           const { locale, lang } = getLocaleLang();
 
-          if (!isEnabledLang(lang)) {
-            const s = super.replyPlaceholder;
-            return typeof s === "function"
-              ? s.call(this, creatingTopic, replyingToTopic, privateMessage, action)
-              : s;
-          }
-
           const model = this.composer?.model;
 
           const ctx = {
@@ -85,20 +93,7 @@ export default apiInitializer("1.8.0", (api) => {
 
           const key = keyForContext(ctx);
 
-          if (key === null) {
-            const s = super.replyPlaceholder;
-            return typeof s === "function"
-              ? s.call(this, creatingTopic, replyingToTopic, privateMessage, action)
-              : s;
-          }
-
-          const translated = I18n.t(key);
-          const isMissing =
-            typeof translated === "string" &&
-            translated.startsWith(`[${locale}.`) &&
-            translated.endsWith("]");
-
-          if (isMissing) {
+          if (!key || !hasNonEmptyTranslation(locale, lang, key)) {
             const s = super.replyPlaceholder;
             return typeof s === "function"
               ? s.call(this, creatingTopic, replyingToTopic, privateMessage, action)
@@ -107,7 +102,6 @@ export default apiInitializer("1.8.0", (api) => {
 
           log("replyPlaceholder ctx", { locale, lang, ...ctx });
           log("replyPlaceholder key", key);
-          log("preview I18n.t(key)", translated);
 
           return key;
         }
