@@ -57,28 +57,10 @@ A practical workflow:
 - Type your value and press **Save** to create an override for that language.
 - If you don’t want a custom placeholder for a language, leave it unset — those users will get the standard Discourse placeholder in their language.
 
-## Debugging
-
-If you need to see what the component is doing in the browser console, you can enable debug logs without editing code:
-
-- In the console:
-  ```js
-  localStorage.setItem("wbComposerPlaceholdersDebug", "1");
-  location.reload();
-  ```
-- Or add `?wbComposerPlaceholdersDebug=1` to the page URL.
-
-To disable:
-
-```js
-localStorage.removeItem("wbComposerPlaceholdersDebug");
-location.reload();
-```
-
 ## Compatibility & version
 
 - Minimum Discourse version: **3.0.0**
-- Theme version: **1.1.17**
+- Theme version: **1.1.18**
 
 ## Support
 

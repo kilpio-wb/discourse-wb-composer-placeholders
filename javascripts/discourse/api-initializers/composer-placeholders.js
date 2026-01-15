@@ -2,19 +2,6 @@ import { apiInitializer } from "discourse/lib/api";
 import I18n from "I18n";
 import discourseComputed from "discourse-common/utils/decorators";
 
-const DEBUG = (() => {
-  try {
-    const w = typeof window !== "undefined" ? window : null;
-    const q = w?.location?.search || "";
-    const ls = w?.localStorage?.getItem("wbComposerPlaceholdersDebug");
-    return ls === "1" || /(^|[?&])wbComposerPlaceholdersDebug=1(&|$)/.test(q);
-  } catch {
-    return false;
-  }
-})();
-
-const log = (...args) => DEBUG && console.log("[WB Composer Placeholders]", ...args);
-
 function getLocaleLang() {
   try {
     const locale = typeof I18n?.currentLocale === "function" ? I18n.currentLocale() : "";
@@ -133,8 +120,6 @@ function keyForContext({ creatingTopic, replyingToTopic, privateMessage, action 
 }
 
 export default apiInitializer("1.8.0", (api) => {
-  log("MODULE LOADED");
-
   if (typeof themePrefix !== "function") {
     console.error("[WB Composer Placeholders] themePrefix not available, component disabled");
     return;
@@ -156,7 +141,6 @@ export default apiInitializer("1.8.0", (api) => {
         )
         replyPlaceholder(creatingTopic, replyingToTopic, privateMessage, action) {
           if (!I18n || typeof I18n.currentLocale !== "function") {
-            log("I18n missing, using super");
             const s = super.replyPlaceholder;
             return typeof s === "function"
               ? s.call(this, creatingTopic, replyingToTopic, privateMessage, action)
@@ -182,9 +166,6 @@ export default apiInitializer("1.8.0", (api) => {
               ? s.call(this, creatingTopic, replyingToTopic, privateMessage, action)
               : s;
           }
-
-          log("replyPlaceholder ctx", { locale, lang, ...ctx });
-          log("replyPlaceholder key", key);
 
           return key;
         }
