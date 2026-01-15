@@ -15,24 +15,6 @@ const DEBUG = (() => {
 
 const log = (...args) => DEBUG && console.log("[WB Composer Placeholders]", ...args);
 
-function debugGroup(title, fn) {
-  if (!DEBUG) return;
-  try {
-    console.groupCollapsed(title);
-    fn();
-  } finally {
-    console.groupEnd();
-  }
-}
-
-function safeI18nT(key) {
-  try {
-    return typeof I18n?.t === "function" ? I18n.t(key) : undefined;
-  } catch (e) {
-    return { error: e?.message || String(e) };
-  }
-}
-
 function getLocaleLang() {
   try {
     const locale = typeof I18n?.currentLocale === "function" ? I18n.currentLocale() : "";
@@ -43,109 +25,52 @@ function getLocaleLang() {
   }
 }
 
-function tNoFallbackForLocale(locale, key) {
+function tForLocale(locale, key) {
   if (!locale || !key || typeof I18n?.t !== "function") return undefined;
 
-  const hadFallbacks = Object.prototype.hasOwnProperty.call(I18n, "fallbacks");
-  const oldFallbacks = I18n.fallbacks;
+  // Prefer per-call locale if supported; fall back to temporary global switch.
+  try {
+    const v = I18n.t(key, { locale, defaultValue: null });
+    if (v != null) return v;
+  } catch {
+    // ignore
+  }
 
   const hadLocale = Object.prototype.hasOwnProperty.call(I18n, "locale");
   const oldLocale = I18n.locale;
 
   try {
-    if (hadFallbacks) I18n.fallbacks = false;
-
-    // Prefer per-call locale if supported by this I18n build
-    let v;
-    try {
-      v = I18n.t(key, { locale, defaultValue: null });
-    } catch {
-      v = undefined;
-    }
-
-    // If per-call locale is ignored, temporarily switch global locale
-    if (v == null && hadLocale) {
-      I18n.locale = locale;
-      v = I18n.t(key, { defaultValue: null });
-    }
-
-    if (typeof v === "string") {
-      const s = v.trim();
-      // Discourse sometimes returns a "missing" marker string; treat as missing
-      if (s.startsWith(`[${locale}.`) || s.startsWith("[missing") || s.startsWith("translation missing:")) {
-        return undefined;
-      }
-    }
-
-    return v;
+    if (hadLocale) I18n.locale = locale;
+    return I18n.t(key, { defaultValue: null });
+  } catch {
+    return undefined;
   } finally {
     if (hadLocale) I18n.locale = oldLocale;
-    if (hadFallbacks) I18n.fallbacks = oldFallbacks;
   }
 }
 
-function getTranslationValueForLocale(locale, key) {
-  const root = I18n?.translations?.[locale];
-  if (!root) return undefined;
-
-  return key.split(".").reduce((obj, part) => {
-    if (!obj || typeof obj !== "object" || !(part in obj)) return undefined;
-    return obj[part];
-  }, root);
-}
-
 function hasNonEmptyTranslation(locale, lang, key) {
-  const v1 = tNoFallbackForLocale(locale, key);
-  if (typeof v1 === "string") return v1.trim().length > 0;
-  if (v1 != null) return true;
+  const v = tForLocale(locale, key);
 
-  const v2 = lang && lang !== locale ? tNoFallbackForLocale(lang, key) : undefined;
-  if (typeof v2 === "string") return v2.trim().length > 0;
-  return v2 != null;
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (!s) return false;
+
+    const loc = String(locale || "").toLowerCase();
+    const base = String(lang || "").toLowerCase();
+    const isEnglish = loc === "en" || loc.startsWith("en-") || loc.startsWith("en_") || base === "en";
+
+    if (isEnglish) return true;
+
+    const en = tForLocale("en", key) ?? tForLocale("en_US", key) ?? tForLocale("en-US", key);
+    if (typeof en === "string") return s !== en.trim();
+
+    return true;
+  }
+
+  return v != null;
 }
 
-
-function probeTranslation(locale, lang, key) {
-  const rootLocale = I18n?.translations?.[locale];
-  const rootLang = lang ? I18n?.translations?.[lang] : undefined;
-
-  const vLocaleWalk = getTranslationValueForLocale(locale, key);
-  const vLangWalk = lang ? getTranslationValueForLocale(lang, key) : undefined;
-
-  const vLocaleFlat =
-    rootLocale && Object.prototype.hasOwnProperty.call(rootLocale, key) ? rootLocale[key] : undefined;
-  const vLangFlat =
-    rootLang && Object.prototype.hasOwnProperty.call(rootLang, key) ? rootLang[key] : undefined;
-
-  const i18nValue = safeI18nT(key);
-
-  const leaf = String(key || "").split(".").slice(-1)[0] || "";
-  const localeHints = rootLocale
-    ? Object.keys(rootLocale)
-        .filter((k) => k.includes(leaf) || k.includes("wb_") || k.includes("js.composer") || k.includes("theme_translation"))
-        .slice(0, 50)
-    : [];
-  const langHints = rootLang
-    ? Object.keys(rootLang)
-        .filter((k) => k.includes(leaf) || k.includes("wb_") || k.includes("js.composer") || k.includes("theme_translation"))
-        .slice(0, 50)
-    : [];
-
-  return {
-    locale,
-    lang,
-    key,
-    i18nValue,
-    vLocaleWalk,
-    vLangWalk,
-    vLocaleFlat,
-    vLangFlat,
-    localeHasThemeTranslationObject: !!rootLocale?.theme_translation,
-    langHasThemeTranslationObject: !!rootLang?.theme_translation,
-    localeHints,
-    langHints,
-  };
-}
 function keyForContext({ creatingTopic, replyingToTopic, privateMessage, action }) {
   if (typeof themePrefix !== "function") {
     console.error("[WB Composer Placeholders] themePrefix not available");
@@ -163,19 +88,6 @@ function keyForContext({ creatingTopic, replyingToTopic, privateMessage, action 
 
 export default apiInitializer("1.8.0", (api) => {
   log("MODULE LOADED");
-  if (DEBUG) {
-    try {
-      const g = typeof globalThis !== "undefined" ? globalThis : window;
-      g.WBComposerPlaceholdersDebug = {
-        getLocaleLang,
-        keyForContext,
-        getTranslationValueForLocale,
-        hasNonEmptyTranslation,
-        probeTranslation,
-      };
-      console.info("[WB Composer Placeholders] Debug enabled. Disable: localStorage.removeItem('wbComposerPlaceholdersDebug') and reload.");
-    } catch {}
-  }
 
   if (typeof themePrefix !== "function") {
     console.error("[WB Composer Placeholders] themePrefix not available, component disabled");
@@ -218,24 +130,15 @@ export default apiInitializer("1.8.0", (api) => {
 
           const key = keyForContext(ctx);
 
-          if (DEBUG) {
-            log("replyPlaceholder ctx", { locale, lang, ...ctx });
-            log("replyPlaceholder key", key);
-            if (key) log("replyPlaceholder I18n.t(key)", safeI18nT(key));
-          }
-
           if (!key || !hasNonEmptyTranslation(locale, lang, key)) {
-            debugGroup("[WB Composer Placeholders] Fallback to super.replyPlaceholder", () => {
-              console.log("ctx:", { locale, lang, ...ctx });
-              console.log("key:", key);
-              if (key) console.log("probe:", probeTranslation(locale, lang, key));
-            });
-
             const s = super.replyPlaceholder;
             return typeof s === "function"
               ? s.call(this, creatingTopic, replyingToTopic, privateMessage, action)
               : s;
           }
+
+          log("replyPlaceholder ctx", { locale, lang, ...ctx });
+          log("replyPlaceholder key", key);
 
           return key;
         }
