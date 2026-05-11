@@ -3,8 +3,8 @@ import { i18n } from "discourse-i18n";
 
 // Discourse's composer (frontend/discourse/app/components/composer-editor.gjs) builds the
 // editor placeholder as an i18n KEY, runs it through the "composer-editor-reply-placeholder"
-// value transformer, then translates it. So here we just return our theme-translation key for
-// the relevant composer context and Discourse calls i18n() on it for us.
+// value transformer, then translates it. The transformer's `context.model` is the composer
+// SERVICE (`@service composer`), so the actual Composer model is `context.model.model`.
 //
 // Keys live in locales/<locale>.yml as:
 //   <locale>:
@@ -24,16 +24,18 @@ export default apiInitializer((api) => {
         return value;
       }
 
-      const model = context?.model;
-      // Don't touch the placeholder while editing an existing post.
-      if (!model || model.editingPost) {
+      // context.model is the composer service; its `.model` is the Composer model.
+      // (Fall back to context.model itself in case a future version passes the model directly.)
+      const composerModel = context?.model?.model ?? context?.model;
+      // Don't touch the placeholder if there's no model, or while editing an existing post.
+      if (!composerModel || composerModel.editingPost) {
         return value;
       }
 
       let suffix;
-      if (model.privateMessage || model.creatingPrivateMessage) {
+      if (composerModel.privateMessage || composerModel.creatingPrivateMessage) {
         suffix = "wb_pm_placeholder"; // composing a new PM, or replying inside a PM
-      } else if (model.creatingTopic) {
+      } else if (composerModel.creatingTopic) {
         suffix = "wb_topic_placeholder"; // composing a new topic
       } else {
         suffix = "wb_reply_placeholder"; // replying to a topic (and any other context)
