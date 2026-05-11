@@ -1,182 +1,53 @@
 import { apiInitializer } from "discourse/lib/api";
-import I18n from "I18n";
-import discourseComputed from "discourse-common/utils/decorators";
+import { i18n } from "discourse-i18n";
 
-function getLocaleLang() {
-  try {
-    const locale = typeof I18n?.currentLocale === "function" ? I18n.currentLocale() : "";
-    const lang = String(locale || "").split(/[-_]/)[0] || "";
-    return { locale, lang };
-  } catch {
-    return { locale: "", lang: "" };
-  }
-}
+// Discourse's composer (frontend/discourse/app/components/composer-editor.gjs) builds the
+// editor placeholder as an i18n KEY, runs it through the "composer-editor-reply-placeholder"
+// value transformer, then translates it. So here we just return our theme-translation key for
+// the relevant composer context and Discourse calls i18n() on it for us.
+//
+// Keys live in locales/<locale>.yml as:
+//   <locale>:
+//     composer:
+//       wb_reply_placeholder: "..."
+//       wb_topic_placeholder: "..."
+//       wb_pm_placeholder: "..."
+// and can be overridden per-site in Admin > Customize > Themes > (this component) > Edit
+// translations (e.g. set composer.wb_topic_placeholder to a longer prompt).
 
-function normLocale(l) {
-  return String(l || "").replace(/_/g, "-").toLowerCase();
-}
-
-function getDefaultLocale() {
-  // i18n-js v4 uses defaultLocale; older variants sometimes expose default_locale
-  const dl = I18n?.defaultLocale ?? I18n?.default_locale;
-  return dl ? String(dl) : "";
-}
-
-function tForLocale(locale, key) {
-  if (!locale || !key || typeof I18n?.t !== "function") return undefined;
-
-  // Prefer per-call locale if supported
-  try {
-    return I18n.t(key, { locale });
-  } catch {
-    // fallback to temporarily switching global locale
-  }
-
-  const hasLocaleProp = "locale" in I18n;
-  const oldLocale = hasLocaleProp ? I18n.locale : undefined;
-
-  try {
-    if (hasLocaleProp) I18n.locale = locale;
-    return I18n.t(key);
-  } finally {
-    if (hasLocaleProp) I18n.locale = oldLocale;
-  }
-}
-
-function isMissingValue(locale, key, v) {
-  if (v == null) return true;
-  if (typeof v !== "string") return false;
-
-  const s = v.trim();
-  if (s.length === 0) return true;
-
-  // common "missing translation" markers
-  if (
-    s.startsWith(`[${locale}.`) ||
-    s.startsWith(`[${String(locale).replace(/-/g, "_")}.`) ||
-    s.startsWith("[missing") ||
-    s.startsWith("translation missing:") ||
-    s === key
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function hasNonEmptyTranslation(locale, lang, key) {
-  // Check current locale first, then base language (de-DE -> de)
-  return (
-    hasExplicitOverrideForLocale(locale, key) ||
-    (lang && lang !== locale && hasExplicitOverrideForLocale(lang, key))
-  );
-}
-
-function hasExplicitOverrideForLocale(locale, key) {
-  if (!locale || !key) return false;
-
-  const v = tForLocale(locale, key);
-  if (isMissingValue(locale, key, v)) return false;
-
-  const s = typeof v === "string" ? v.trim() : v;
-
-  const nLoc = normLocale(locale);
-
-  // Compare against english
-  const en = "en";
-  if (nLoc !== "en") {
-    const vEn = tForLocale(en, key);
-    if (!isMissingValue(en, key, vEn) && typeof vEn === "string" && vEn.trim() === s) {
-      return false; // fallback-to-en, not an explicit locale value
-    }
-  }
-
-  // Compare against default locale (often your site default; on your instance likely "ru")
-  const def = getDefaultLocale();
-  const nDef = normLocale(def);
-  if (def && nDef && nDef !== nLoc) {
-    const vDef = tForLocale(def, key);
-    if (!isMissingValue(def, key, vDef) && typeof vDef === "string" && vDef.trim() === s) {
-      return false; // fallback-to-default-locale (e.g. ru), not explicit
-    }
-  }
-
-  return true;
-}
-
-function keyForContext({ creatingTopic, replyingToTopic, privateMessage, action }) {
-  if (typeof themePrefix !== "function") {
-    console.error("[WB Composer Placeholders] themePrefix not available");
-    return null;
-  }
-
-  const isPm = !!privateMessage || action === "createPrivateMessage";
-
-  if (isPm) return themePrefix("js.composer.wb_pm_placeholder");
-  if (creatingTopic) return themePrefix("js.composer.wb_topic_placeholder");
-  if (replyingToTopic) return themePrefix("js.composer.wb_reply_placeholder");
-
-  return themePrefix("js.composer.wb_reply_placeholder");
-}
-
-export default apiInitializer("1.8.0", (api) => {
-  if (typeof themePrefix !== "function") {
-    console.error("[WB Composer Placeholders] themePrefix not available, component disabled");
-    return;
-  }
-
-  try {
-    api.modifyClass("component:composer-editor", (Superclass) => {
-      if (!Superclass) {
-        console.warn("[WB Composer Placeholders] composer-editor component not found");
-        return;
+export default apiInitializer((api) => {
+  api.registerValueTransformer(
+    "composer-editor-reply-placeholder",
+    ({ value, context }) => {
+      // `themePrefix` is injected into theme JS; bail out (keep Discourse's default) if it isn't.
+      if (typeof themePrefix !== "function") {
+        return value;
       }
 
-      return class extends Superclass {
-        @discourseComputed(
-          "composer.model.creatingTopic",
-          "composer.model.replyingToTopic",
-          "composer.model.privateMessage",
-          "composer.model.action"
-        )
-        replyPlaceholder(creatingTopic, replyingToTopic, privateMessage, action) {
-          if (!I18n || typeof I18n.currentLocale !== "function") {
-            const s = super.replyPlaceholder;
-            return typeof s === "function"
-              ? s.call(this, creatingTopic, replyingToTopic, privateMessage, action)
-              : s;
-          }
+      const model = context?.model;
+      // Don't touch the placeholder while editing an existing post.
+      if (!model || model.editingPost) {
+        return value;
+      }
 
-          const { locale, lang } = getLocaleLang();
+      let suffix;
+      if (model.privateMessage || model.creatingPrivateMessage) {
+        suffix = "wb_pm_placeholder"; // composing a new PM, or replying inside a PM
+      } else if (model.creatingTopic) {
+        suffix = "wb_topic_placeholder"; // composing a new topic
+      } else {
+        suffix = "wb_reply_placeholder"; // replying to a topic (and any other context)
+      }
 
-          const model = this.composer?.model;
+      const key = themePrefix(`composer.${suffix}`);
 
-          const ctx = {
-            creatingTopic: creatingTopic ?? model?.creatingTopic ?? false,
-            replyingToTopic: replyingToTopic ?? model?.replyingToTopic ?? false,
-            privateMessage: privateMessage ?? model?.privateMessage ?? false,
-            action: action ?? model?.action,
-          };
-
-          const key = keyForContext(ctx);
-
-          if (!key || !hasNonEmptyTranslation(locale, lang, key)) {
-            const s = super.replyPlaceholder;
-            return typeof s === "function"
-              ? s.call(this, creatingTopic, replyingToTopic, privateMessage, action)
-              : s;
-          }
-
-          return key;
-        }
-      };
-    });
-  } catch (error) {
-    console.error("[WB Composer Placeholders] Failed to modify composer-editor:", error);
-    console.error("[WB Composer Placeholders] Error details:", {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-    });
-  }
+      // Only use our key if it actually resolves to a translation (locale file or override);
+      // otherwise fall back to Discourse's stock placeholder.
+      const resolved = i18n(key);
+      if (typeof resolved !== "string" || resolved === key || resolved.startsWith("[")) {
+        return value;
+      }
+      return key;
+    }
+  );
 });

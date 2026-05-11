@@ -1,7 +1,5 @@
 en:
-  js:
-    composer:
-      wb_reply_placeholder: "Type here. Use Markdown, BBCode, or HTML to format. Drag or paste images."
-      wb_topic_placeholder: "Type here. Use Markdown, BBCode, or HTML to format. Drag or paste images."
-      wb_pm_placeholder: "Type here. Use Markdown, BBCode, or HTML to format. Drag or paste images."
-
+  composer:
+    wb_reply_placeholder: "Type here. Use Markdown, BBCode, or HTML to format. Drag or paste images."
+    wb_topic_placeholder: "Type here. Use Markdown, BBCode, or HTML to format. Drag or paste images."
+    wb_pm_placeholder: "Type here. Use Markdown, BBCode, or HTML to format. Drag or paste images."
