@@ -1,5 +1,12 @@
 en:
   composer:
     wb_reply_placeholder: "Type here. Use Markdown, BBCode, or HTML to format. Drag or paste images."
-    wb_topic_placeholder: "Type here. Use Markdown, BBCode, or HTML to format. Drag or paste images."
-    wb_pm_placeholder: "Type here. Use Markdown, BBCode, or HTML to format. Drag or paste images."
+    wb_topic_placeholder: |
+      To help us assist you faster, please provide:
+
+          • A diagnostic archive (the most important file for analysis);
+          • Screenshots of the settings and a description of what exactly isn’t working;
+          • The expected result and how it differs from the current one.
+
+      If the issue is with a module, please specify the supply voltage and the status of the Status LED.
+    wb_pm_placeholder: "Support doesn't reply to private messages — your question may be missed. Please create a topic on the portal or email support@wirenboard.com."
