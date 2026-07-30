@@ -1,0 +1,3 @@
+pm_warning_exempt_groups:
+  type: list
+  default: "staff|wb-employees|support"

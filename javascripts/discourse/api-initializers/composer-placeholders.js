@@ -16,6 +16,30 @@ import { i18n } from "discourse-i18n";
 // translations (e.g. set composer.wb_topic_placeholder to a longer prompt).
 
 export default apiInitializer((api) => {
+  const currentUser = api.getCurrentUser();
+  // "Our" people compose PMs as part of their work (to a colleague, or to a client after
+  // adding @support), so they should see the stock placeholder — NOT the "we don't answer
+  // in PMs" warning, which is aimed at clients.
+  //
+  // Which groups count is a theme setting (`pm_warning_exempt_groups`, a "|"-separated list
+  // of group NAMES) rather than a constant in here: group ids are site-specific, and a
+  // mismatch would silently show staff the client warning with nothing in the logs.
+  // Matching by name keeps it readable, and the setting is visible/editable in
+  // Admin > Customize > Themes > this component, so it can be fixed without a redeploy.
+  const exemptGroups = (
+    typeof settings !== "undefined" ? settings.pm_warning_exempt_groups || "" : ""
+  )
+    .split("|")
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean);
+
+  // `staff` covers admins/moderators even if the setting is emptied by mistake.
+  const isOurStaff =
+    !!currentUser?.staff ||
+    !!currentUser?.groups?.some((g) =>
+      exemptGroups.includes(String(g.name || "").toLowerCase())
+    );
+
   api.registerValueTransformer(
     "composer-editor-reply-placeholder",
     ({ value, context }) => {
@@ -34,6 +58,10 @@ export default apiInitializer((api) => {
 
       let suffix;
       if (composerModel.privateMessage || composerModel.creatingPrivateMessage) {
+        // The PM warning is for clients only; staff see the stock placeholder.
+        if (isOurStaff) {
+          return value;
+        }
         suffix = "wb_pm_placeholder"; // composing a new PM, or replying inside a PM
       } else if (composerModel.creatingTopic) {
         suffix = "wb_topic_placeholder"; // composing a new topic

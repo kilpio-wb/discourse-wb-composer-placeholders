@@ -25,7 +25,7 @@ It is designed for multilingual forums:
 1. Go to **Admin → Appearance → Themes and components**.
 2. Open the **Components** tab.
 3. Click **Install** → **From a Git repository**.
-4. Paste the repository URL: `https://github.com/kilpio-wb/discourse-wb-composer-placeholders`
+4. Paste the repository URL: `https://github.com/wirenboard/discourse-wb-composer-placeholders`
 5. After install, include the component in the theme(s) where you want it enabled.
 
 ### Set your placeholder texts
@@ -36,11 +36,22 @@ It is designed for multilingual forums:
 4. Select a language in the language picker.
 5. Set any of these keys (multi‑line text is supported):
 
-   - `js.composer.wb_topic_placeholder` — shown when creating a new topic
-   - `js.composer.wb_reply_placeholder` — shown when replying
-   - `js.composer.wb_pm_placeholder` — shown when creating a private message
+   - `composer.wb_topic_placeholder` — shown when creating a new topic
+   - `composer.wb_reply_placeholder` — shown when replying
+   - `composer.wb_pm_placeholder` — shown when creating a private message
 
 6. Click **Save**.
+
+### Who sees the private-message placeholder
+
+The PM placeholder is typically a warning aimed at **clients** (“we don’t answer support questions in PMs”). Staff send PMs as part of their work, so they are exempt and see Discourse’s stock placeholder instead.
+
+Exemption is controlled by the setting **`pm_warning_exempt_groups`** (Admin → Appearance → Themes and components → this component → **Settings**): a list of group **names**, `|`-separated. Default: `staff|wb-employees|support`.
+
+- Group **names** are used rather than ids, because ids differ between sites — a mismatch would silently show staff the client warning with nothing in the logs.
+- Admins and moderators are always exempt, even if the list is emptied.
+- If a name in the list doesn’t exist, members simply aren’t exempt — so the failure direction is “everyone sees the warning”, never “clients stop seeing it”.
+- Only the **private message** placeholder is affected; new-topic and reply placeholders are the same for everyone.
 
 ### How fallback works
 
@@ -60,8 +71,8 @@ A practical workflow:
 ## Compatibility & version
 
 - Minimum Discourse version: **3.0.0**
-- Theme version: **1.1.18**
+- Theme version: **2.0.1**
 
 ## Support
 
-Project home: https://github.com/kilpio-wb/discourse-wb-composer-placeholders
+Project home: https://github.com/wirenboard/discourse-wb-composer-placeholders

@@ -1,4 +1,7 @@
 en:
+  theme_metadata:
+    settings:
+      pm_warning_exempt_groups: "Groups that should NOT see the private-message warning (\"|\"-separated list of group names). These are staff: they send PMs as part of their work, while the warning is aimed at clients. Admins and moderators are always exempt, regardless of this list."
   composer:
     wb_reply_placeholder: "Type here. Use Markdown, BBCode, or HTML to format. Drag or paste images."
     wb_topic_placeholder: |
